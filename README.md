@@ -1,56 +1,39 @@
-# PDF Translator
+# PDF Translate
 
-Translate PDFs into any language via the Google Translate unofficial API.
-Fully resumable — kill and restart at any point without losing progress.
+[![PyPI](https://img.shields.io/pypi/v/pdf-translate)](https://pypi.org/project/pdf-translate/)
+[![GitHub](https://img.shields.io/badge/github-guilt%2Fpdf--translate-blue)](https://github.com/guilt/pdf-translate)
+
+A fast, resumable PDF translator that supports **Google Translate** (free) and **LLM** backends (OpenAI-compatible).
+
+Fully resumable — you can kill the process at any time and resume later without losing progress.
 
 ## Features
 
 - Text extraction via [pdftext](https://github.com/datalab-to/pdftext)
-- Translation via [googletrans](https://pypi.org/project/googletrans/) (unofficial Google Translate API)
-- Per-chunk parallelism (configurable threads) and multi-PDF parallelism
-- All intermediate state cached under `.workflows/<id>/` — resume after any crash
-- Reverse-translation for confidence scoring
-- Structured logging with `--log-level` and optional `--log-file`
+- Translation via [googletrans](https://pypi.org/project/googletrans/) (unofficial Google Translate API) or [OpenAI](https://pypi.org/project/openai/)  compatible LLM.
+- Smart sentence-based chunking
+- **Review mode** with back-translation and confidence scoring
+- Automatic generation of clean HTML and PDF via [WeasyPrint CLI](https://weasyprint.org/)
+- All intermediate results cached under `.workflows/` and resume on crash
 
-## Output files
-
-For each translated PDF `data/Foo.pdf`, the tool writes:
-
-| File | Location | Description |
-|---|---|---|
-| `Foo-Translated.md` | same dir as source PDF | Pandoc-compatible Markdown, ready to render |
-| `Foo-Translated.pdf` | same dir as source PDF | Rendered PDF (requires pandoc + a TeX engine) |
-| `.workflows/<id>/output_ta.txt` | workflow dir | Internal artifact with per-chunk confidence scores |
-| `.workflows/<id>/run.log` | workflow dir | Full run log, tail -f during long runs |
-
-### Pandoc PDF requirements
-
-For PDF generation you need [pandoc](https://pandoc.org/installing.html) and a PDF engine:
+## Installation
 
 ```bash
-# macOS
-brew install pandoc mactex
-
-# Ubuntu / Debian
-sudo apt install pandoc texlive-xetex
-
-# Windows (scoop)
-scoop install pandoc miktex
+pip install pdf-translate
 ```
 
-For non-Latin scripts (Tamil, Hindi, Arabic, Japanese, etc.) the default LaTeX fonts won't work.
-Install the [Noto font](https://fonts.google.com/noto) for your target language (e.g. *Noto Serif Tamil*)
-and XeLaTeX will pick it up via the `mainfont` field in the Markdown front matter.
-
-If pandoc is not installed the tool still runs completely — it writes the `.md` file and logs a warning
-with the exact `pandoc` command you can run manually later.
-
-## Setup
-
-> **Important:** `googletrans==4.0.0-rc1` pins `httpx==0.13.3`.
-> Use a virtual environment to avoid breaking other tools.
+or
 
 ```bash
+pip install git+https://github.com/guilt/pdf-translate
+```
+
+## Setup from Source
+
+```bash
+git clone https://github.com/guilt/pdf-translate
+cd pdf-translate
+
 python -m venv .venv
 
 # Windows
@@ -59,95 +42,130 @@ python -m venv .venv
 # macOS / Linux
 source .venv/bin/activate
 
-pip install -r requirements.txt
+pip install .
 ```
 
 ## Usage
 
+### 1. Google Translate (Free & Simple)
+
 ```bash
-# Translate one PDF to Tamil
-python translate.py --language=ta data/Freelance.pdf
+# Single language
+pdf-translate --language ta data/FRF-Interim-Final-Rule-Freelance.pdf
 
-# Verbose debug output + log file
-python translate.py --language=ta --log-level=DEBUG --log-file=run.log data/Freelance.pdf
-
-# Batch: 3 PDFs, 2 PDFs at a time, 6 translation threads each
-python translate.py --language=hi --pdf-workers=2 --translate-workers=6 data/*.pdf
-
-# Resume an interrupted run (re-run the exact same command — cached steps are skipped)
-python translate.py --language=ta data/Freelance.pdf
+# Multiple languages with review
+pdf-translate --language ta --language hi --review data/FRF-Interim-Final-Rule-Freelance.pdf
 ```
 
-### All options
+### 2. LLM Mode
 
-| Flag | Default | Description |
-|---|---|---|
-| `--language` | *(required)* | Target language code (`ta`, `hi`, `fr`, `de`, …) |
-| `--chunk-size` | `400` | Characters per translation chunk |
-| `--translate-workers` | `4` | Parallel translation threads per PDF |
-| `--pdf-workers` | `2` | PDFs processed concurrently |
-| `--workflows-dir` | `.workflows` | Root directory for all artifacts |
-| `--log-level` | `INFO` | `DEBUG` / `INFO` / `WARNING` / `ERROR` |
-| `--log-file` | *(none)* | Also write logs to this file path |
+```bash
+# Set environment variables
+export OPENAI_API_KEY="sk-..."
+export OPENAI_MODEL="gpt-4o-mini"
 
-## Workflow layout
-
-Every PDF gets a stable directory derived from a SHA-256 hash of its resolved path:
-
-```
-.workflows/
-  a3f9c1b2e4d87f60/          ← workflow ID (sha256 of resolved path)[:16]
-    meta.json                ← source path, language, chunk_size, created_at
-    extracted.txt            ← raw text from pdftext
-    cleaned.txt              ← whitespace/page-number cleaned text
-    chunks.json              ← array of text chunks
-    translated_ta.json       ← per-chunk translations (null = not yet done)
-    reverse_ta.json          ← back-translated to English for scoring
-    output_ta.txt            ← final output with per-chunk confidence
-    translate.log            ← log file (if --log-file used)
+# Run translation
+pdf-translate --translator llm --language ta --review data/FRF-Interim-Final-Rule-Freelance.pdf
 ```
 
-Deleting a file forces that step to re-run on the next invocation.
-Deleting the whole workflow directory starts fresh.
+#### Popular LLM Provider Examples
 
-## Output format
-
-```
-# Source:     Freelance.pdf
-# Language:   ta
-# Confidence: 73.41%
-# Workflow:   a3f9c1b2e4d87f60
-# Generated:  2026-04-24T10:30:00
-
-<!-- chunk 1/142 | confidence 81.20% -->
-<translated text>
-
-<!-- chunk 2/142 | confidence 76.44% -->
-<translated text>
-...
+### Grok
+```bash
+export OPENAI_API_KEY="xai-..."
+export OPENAI_BASE_URL="https://api.x.ai/v1"
+export OPENAI_MODEL="grok-4.20"
 ```
 
-Confidence is computed as the token-level sequence similarity between the original
-English text and the back-translated (Tamil → English) text.
-Low-confidence chunks (<40%) are flagged in the log as warnings.
+### OpenRouter
+```bash
+export OPENAI_API_KEY="sk-..."     # Your Anthropic key
+export OPENAI_BASE_URL="https://openrouter.ai/api/v1"
+export OPENAI_MODEL="anthropic/claude-opus-4-7"
+```
 
-## Resumability
+### Claude
+```bash
+export OPENAI_API_KEY="sk-ant-..."     # Your Anthropic key
+export OPENAI_BASE_URL="https://api.anthropic.com/v1"
+export OPENAI_MODEL="claude-opus-4-7"
+```
 
-Each translation step saves state after **every chunk**. If the process is killed
-mid-run, re-running the same command picks up from the last saved chunk.
-In-flight chunks at crash time (≤ `--translate-workers` chunks) are the only ones
-that may need to be re-translated.
+### Qwen
+```bash
+export OPENAI_API_KEY="sk-..."
+export OPENAI_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1"
+export OPENAI_MODEL="qwen3.5-plus"
+```
 
-## Language codes
+### OpenAI
+```bash
+export OPENAI_API_KEY="sk-..."
+export OPENAI_MODEL="gpt-5.5"
+```
 
-Common codes: `ta` (Tamil), `hi` (Hindi), `fr` (French), `de` (German),
-`es` (Spanish), `zh-cn` (Chinese Simplified), `ar` (Arabic), `ja` (Japanese).
+### DeepSeek
+```bash
+export OPENAI_API_KEY="sk-..."
+export OPENAI_BASE_URL="https://api.deepseek.com/v1"
+export OPENAI_MODEL="deepseek-chat"
+```
 
-Full list: https://py-googletrans.readthedocs.io/en/latest/#googletrans-languages
+### Ollama
+```bash
+export OPENAI_API_KEY="ollama"
+export OPENAI_BASE_URL="http://localhost:11434/v1"
+export OPENAI_MODEL="gpt-oss:latest"
+```
 
-## License
+### All Options
 
-MIT — see [LICENSE](LICENSE.md).
+| Flag                  | Default              | Description |
+|-----------------------|----------------------|-----------|
+| `--language`, `-l`    | **required**         | Target language code (can be used multiple times) |
+| `--translator`        | `googletrans`        | `googletrans` or `llm` |
+| `--workers`           | `CPU cores / 2`      | Total concurrent translation workers |
+| `--chunk-size`        | `400`                | Maximum characters per chunk |
+| `--review`            | `false`              | Generate side-by-side review documents |
+| `--list-languages`    | —                    | Show all supported languages and exit |
+
+## Output Files
+
+For a file `document.pdf` translated to Tamil (`ta`):
+
+- `document-ta-Translated.md`,`document-ta-Translated.html` and `document-ta-Translated.pdf` (PDF when **WeasyPrint** is available)
+- `document-ta-ReviewTranslated.md`, `document-ta-ReviewTranslated.html` and `document-ta-ReviewTranslated.pdf` (Only with `--review`)
+
+All files are saved in the same directory as the source PDF.
+
+## Review Mode
+
+This is by adding an optional flag `--review`
+
+- Performs back-translation (translated text → English)
+- Calculates confidence score for each chunk
+- Generates a rich side-by-side comparison table
+- Flags low-confidence chunks (< 40%) with ⚠
+
+## Language Codes
+
+Run this command to see all supported languages:
+```bash
+python translate.py --list-languages
+```
+
+Examples: `ta` (Tamil), `hi` (Hindi), `zh-cn` (Chinese), `ar` (Arabic), `ja` (Japanese), `fr` (French), `de` (German),
+ `es` (Spanish) etc.
+
+## Development
+
+Install with dev and other dependencies:
+
+```bash
+pip install -e ".[dev,pdf,llm]"
+```
+
+Tests print full translation output by default (`-s -v` is configured in `pyproject.toml`).
 
 ## Thank You and Feedback
 

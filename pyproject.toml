@@ -1,0 +1,34 @@
+[project]
+name = "pdf-translate"
+version = "1.0.0"
+description = "Resumable PDF Translator with Google Translate and LLM support"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [{name = "Karthik Kumar Viswanathan", email = "me@karthikkumar.org"}]
+dependencies = [
+    "pdftext==0.6.3",
+    "numpy>=1.24",
+    "googletrans==4.0.2",
+    "rich>=13.0",
+    "markdown>=3.5",
+]
+
+[project.urls]
+Homepage = "https://github.com/guilt/pdf-translate"
+Repository = "https://github.com/guilt/pdf-translate"
+Issues = "https://github.com/guilt/pdf-translate/issues"
+
+[project.optional-dependencies]
+llm = ["openai>=1.60.0"]
+pdf = ["weasyprint>=60.0"]
+dev = ["pytest>=8.0","build","twine"]
+
+[project.scripts]
+pdf-translate = "translate:main"
+
+[tool.setuptools]
+py-modules = ["translate"]
+
+[tool.pytest.ini_options]
+addopts = "-v -s"

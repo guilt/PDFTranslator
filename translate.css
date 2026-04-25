@@ -26,24 +26,10 @@
   --line-height:       1.7;
 }
 
-/* ── PDF page layout (weasyprint) ─────────��─────────────────── */
+/* ── PDF page layout (weasyprint) ───────────────────────────── */
 @page {
   size: A4;
   margin: var(--margin);
-
-  @bottom-center {
-    content: "Page " counter(page) " of " counter(pages);
-    font-family: 'Noto Sans', Arial, sans-serif;
-    font-size:   7.5pt;
-    color:       var(--color-subtle);
-  }
-
-  @top-right {
-    content:    attr(data-doc-title);   /* filled via weasyprint named string if set */
-    font-size:  7pt;
-    color:      var(--color-subtle);
-    font-style: italic;
-  }
 }
 
 /* ── Base ───────────────────────────────────────────────────── */
@@ -124,6 +110,11 @@ p > strong:first-child:last-child {
   bookmark-state: closed;
 }
 
+/* Force a new PDF page at each source-page boundary (except the first). */
+p.pb > strong:first-child:last-child {
+  break-before: page;
+}
+
 /* ── Confidence block ───────────────────────────────────────── */
 blockquote {
   background:    var(--color-conf-bg);
@@ -157,10 +148,11 @@ em {
 
 /* ── Review table (side-by-side source / translation) ───────── */
 table {
-  width:           100%;
-  border-collapse: collapse;
-  font-size:       0.87em;
-  margin:          0.4em 0 1em;
+  width:             100%;
+  table-layout:      fixed;   /* required for percentage widths to hold */
+  border-collapse:   collapse;
+  font-size:         0.87em;
+  margin:            0.4em 0 1em;
   page-break-inside: auto;
 }
 table th {
@@ -172,10 +164,12 @@ table th {
   white-space:   nowrap;
 }
 table td {
-  padding:       0.35em 0.6em;
-  border:        1px solid var(--color-border);
-  vertical-align:top;
-  width:         50%;
+  padding:          0.35em 0.6em;
+  border:           1px solid var(--color-border);
+  vertical-align:   top;
+  width:            50%;
+  word-wrap:        break-word;
+  overflow-wrap:    break-word;
 }
 table tr:nth-child(even) td { background: #f9fafb; }
 table tr:hover td             { background: #f0f4ff; }
